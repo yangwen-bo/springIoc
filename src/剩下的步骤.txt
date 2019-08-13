@@ -1,0 +1,58 @@
+这里重点梳理一下解析 spring.xml 并创建 bean 的逻辑。
+spring.xml 如下所示。
+
+<bean id="address" class="com.southwind.entity.Address">
+  <property name="id" value="1"></property>
+  <property name="name" value="科技路"></property>
+</bean>
+
+加载 spring.xml 文件，用 dom4j 进行解析。
+SAXReader reader = new SAXReader();
+Document document = reader.read("./src/main/resources/"+path);
+Element root = document.getRootElement();
+Iterator<Element> iterator = root.elementIterator();
+while(iterator.hasNext()){
+  ...
+}
+while 循环内部完成对 bean 标签的解析，首先获取 bean 标签的 id 值和 class 值。
+String id = element.attributeValue("id");
+String className = element.attributeValue("class");
+通过反射机制获取 className 对应的运行时类，进而获取无参构造函数创建 bean。
+Class clazz = Class.forName(className);
+//获取无参构造函数，创建目标对象
+Constructor constructor = clazz.getConstructor();
+Object object = constructor.newInstance();
+object 就是 bean 对象，但是现在它只是一个空对象，属性值都为 null 或者 0，因此接下来就是给 object 的各个属性赋值，具体操作方式是继续迭代 bean 标签，获取它的所有子标签 property，每一个 property 标签就对应 object 的一对属性值。
+Iterator<Element> beanIter = element.elementIterator();
+while(beanIter.hasNext()){
+  ...
+}
+while 循环内部完成对 property 标签的解析，获取 name 和 value 值，name 就表示当前所对应的属性名，value 就是对应的属性值，如何来完成赋值呢？思路是先通过 name 获取到属性对应的 setter 方法，然后调用 setter 方法并将 value 作为参数传入来完成赋值，通过反射机制获取到 name 对应属性的 setter 方法。
+String methodName = "set"+name.substring(0,1).toUpperCase()+name.substring(1);
+Field field = clazz.getDeclaredField(name);
+Method method = clazz.getDeclaredMethod(methodName,field.getType());
+method 就是目标 setter 方法，接下来还有个问题，调用 setter 完成赋值时所传入参数的数据类型必须和方法定义的参数数据类型一致，但是现在我们获取到的 value 全部为 String 类型，这就需要做一个映射：根据当前属性的数据类型，对 value 进行数据类型转换，保证二者类型一致，具体操作如下。
+//根据成员变量的数据类型将 value 进行转换
+Object value = null;
+if(field.getType().getName() == "long"){
+  value = Long.parseLong(valueStr);
+}
+if(field.getType().getName() == "java.lang.String"){
+  value = valueStr;
+}
+if(field.getType().getName() == "int"){
+  value = Integer.parseInt(valueStr);
+}
+这里只列举了 long、String、int 类型的映射，其他数据类型的转换逻辑是一样的，实现了数据类型转换。现在完成最后一步，通过反射机制调用动态生成的 setter 方法，完成属性赋值，同时将动态创建的 bean 存入集合中，bean 标签的 id 值作为 key。
+method.invoke(object,value);
+ioc.put(id,object);
+通过以上的操作，完成了 spring.xml 的解析，动态创建了定制 bean，同时提供了获取方法。
+（4）测试类，使用自定义的 Application 和 ClassPathXmlApplicationContext 来加载 spring.xml，然后通过 id 获取 bean，使用方式与 Spring Framework 完全一致。
+
+public class Test {
+    public static void main(String[] args) {
+        ApplicationContext applicationContext = new ClassPathXmlApplicationContext("spring.xml");
+        Address address = (Address) applicationContext.getBean("address");
+        System.out.println(address);
+    }
+}
