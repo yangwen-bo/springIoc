@@ -1,0 +1,10 @@
+github提交本地代码不计算贡献解决方法
+ 往往是本地git邮箱 姓名等与github上名称 邮箱地址不匹配
+
+ 查看本地git邮箱地址，姓名
+ git config user.email
+ git config user.name
+
+ 如果和github上不一致的话，修改本地与github上保持一致
+ git config --global user.email "1534458078@qq.com"
+ git config --global user.name "yangwen-bo"
